@@ -5,7 +5,7 @@ import UsersList from './Users/UsersList';
 const App: FC = () => {
   return (
     <div className="App container">
-        <UsersList/>
+      <UsersList/>
     </div>
   );
 };
