@@ -1,28 +1,57 @@
-import React, { ChangeEvent, FC, useMemo, useState } from 'react';
-import { USERS } from './users';
+import React, { ChangeEvent, FC, useEffect, useMemo, useState } from 'react';
 import { initialUser } from './initialUser';
 import { v4 as uuid4 } from 'uuid';
 import { IUser } from './IUser';
+import http from '../../http';
+import { useSearch } from '../../hooks/useUsers';
 
 const UsersList: FC = () => {
-  const [users, setUsers] = useState(USERS);
+  const [users, setUsers] = useState<IUser[]>([]);
   const [user, setUser] = useState(initialUser);
   const [isEditUser, setIsEditUser] = useState(false);
   const [searchedUsers, setSearchedUsers] = useState<IUser[]>([]);
+  const [params, setParams] = useState({ field: '', query: '' });
+  const sortedAndSearchedUsers = useSearch(users, params.field, params.query);
 
   useMemo(() => {
     searchedUsers.length ? setSearchedUsers(searchedUsers) : setSearchedUsers(users);
-  }, []);
+  }, [users]);
+  const onSort = (field: string) => {
+    if (!field) return;
+    setSearchedUsers([...searchedUsers].sort((a: any, b: any) => a[field] < b[field] ? -1 : 1));
+  };
 
   const onSearch = (event: ChangeEvent<HTMLInputElement>) => {
     setSearchedUsers(users.filter(user => user.email.toLowerCase().includes(event.target.value.toLowerCase())));
   };
-  const onSort = (field: string) => {
-    if (!field) return;
-    const sortedUser = users.sort((a:any, b:any) => a[field]  < b[field] ? -1 : 1);
-    console.log(sortedUser);
+
+  //CRUD
+  const addUser = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    http.post('users', user).then((res) => {
+      setUsers([...users, res.data]);
+      setSearchedUsers([...users, res.data]);
+      clearUser();
+    }).catch((err) => {
+      console.log(err);
+    });
+  };
+  const getUsers = () => {
+    http.get('users').then(res => {
+      setUsers(res.data);
+    }).catch((error) => {
+      console.log(error);
+    });
+  };
+  const removeUser = (id: number | string) => {
+    const isDelete = window.confirm('Really delete this user?');
+    http.delete(`users/${id.toString()}`).then(res => console.log(res));
+    if (isDelete) {
+      setUsers(users.filter((user) => user.id !== id));
+    }
   };
 
+  //VIEW CHANGE
   const clearUser = (event?: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
     event?.preventDefault();
     setUser({ ...initialUser, id: uuid4() });
@@ -31,17 +60,7 @@ const UsersList: FC = () => {
     const field = event.target.id;
     setUser({ ...user, [field]: event.target.value });
   };
-  const addUser = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setUsers([...users, user]);
-    clearUser();
-  };
-  const removeUser = (id: number | string) => {
-    const isDelete = window.confirm('Really delete this user?');
-    if (isDelete) {
-      setUsers(users.filter((user) => user.id !== id));
-    }
-  };
+
   return (
     <>
       <h1 className="m-5">Users</h1>
@@ -56,54 +75,57 @@ const UsersList: FC = () => {
         />
       </div>
       <button className="btn btn-primary mb-2" onClick={() => setIsEditUser(!isEditUser)}>Show form</button>
-      {isEditUser
-        ?
-        <form onSubmit={(event) => addUser(event)}>
-          <h4>Form for create User</h4>
-          {Object.keys(user).map((value: string, index) => {
-              if (value === 'id') return;
-              return <input className="form-control mb-1"
-                            key={index + 1}
-                            id={value}
-                            placeholder={value}
-                            onChange={(event) => onChange(event)}/>;
-            }
-          )}
-          <button className="btn btn-success m-2">Add</button>
-          <button className="btn btn-danger m-2" onClick={(event) => clearUser(event)}>Clear</button>
-        </form>
-        : ''}
-      <table className="table">
-        <thead>
-        <tr>
-          {Object.keys(users[0]).map(head => <th key={head} scope="row" onClick={() => onSort(head)}>{head}</th>)}
-          <th>action</th>
-        </tr>
-        </thead>
-        <tbody>
-        {searchedUsers.map((user, index) =>
-          <tr key={user.id}>
-            <td>{index + 1}</td>
-            <td>{user.name}</td>
-            <td>{user.username}</td>
-            <td>{user.email}</td>
-            <td>{user.address?.city}</td>
-            <td>{user.phone}</td>
-            <td>{user.website}</td>
-            <td>{user.company?.name}</td>
-            <td>
-              <button
-                type="button"
-                className="btn btn-outline-danger"
-                onClick={() => removeUser(user.id)}
-              >
-                Delete
-              </button>
-            </td>
-          </tr>
+      <button className="btn btn-success mx-2 mb-2" onClick={() => getUsers()}>Fetch users</button>
+      {isEditUser &&
+      <form onSubmit={(event) => addUser(event)}>
+        <h4>Form for create User</h4>
+        {Object.keys(user).map((value: string, index) => {
+            if (value === 'id') return;
+            return <input className="form-control mb-1"
+                          key={index + 1}
+                          id={value}
+                          value={user[value as keyof Omit<IUser, 'address' | 'company'>]}
+                          placeholder={value}
+                          onChange={(event) => onChange(event)}/>;
+          }
         )}
-        </tbody>
-      </table>
+        <button className="btn btn-success m-2">Add</button>
+        <button className="btn btn-danger m-2" onClick={(event) => clearUser(event)}>Clear</button>
+      </form>}
+      {searchedUsers.length ?
+        <table className="table">
+          <thead>
+          <tr>
+            {Object.keys(users[0]).map(head => <th key={head} scope="row" onClick={() => onSort(head)}>{head}</th>)}
+            <th>action</th>
+          </tr>
+          </thead>
+          <tbody>
+          {searchedUsers.map((user, index) =>
+            <tr key={user.id}>
+              <td>{index + 1}</td>
+              <td>{user.name}</td>
+              <td>{user.username}</td>
+              <td>{user.email}</td>
+              <td>{user.address?.city}</td>
+              <td>{user.phone}</td>
+              <td>{user.website}</td>
+              <td>{user.company?.name}</td>
+              <td>
+                <button
+                  type="button"
+                  className="btn btn-outline-danger"
+                  onClick={() => removeUser(user.id)}
+                >
+                  Delete
+                </button>
+              </td>
+            </tr>
+          )}
+          </tbody>
+        </table> :
+        <h2>Users not exists</h2>
+      }
     </>
   );
 };
