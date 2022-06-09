@@ -1,11 +1,16 @@
 import React, { FC } from 'react';
 import './App.css';
-import UsersList from './Users/UsersList';
+import NavBar from './NavBar';
+import AppRoutes from './AppRoutes';
+import { BrowserRouter } from 'react-router-dom';
 
 const App: FC = () => {
   return (
-    <div className="App container">
-      <UsersList/>
+    <div className="App">
+      <BrowserRouter>
+        <NavBar/>
+        <AppRoutes/>
+      </BrowserRouter>
     </div>
   );
 };
